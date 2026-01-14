@@ -71,7 +71,7 @@ async def sudoers_list(client, message: Message):
 
     # await message.reply_photo(photo="https://files.catbox.moe/ix1sik.mp4", caption="**» ᴄʜᴇᴄᴋ sᴜᴅᴏ ʟɪsᴛ ʙʏ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ.**\n\n**» ɴᴏᴛᴇ:**  ᴏɴʟʏ sᴜᴅᴏ ᴜsᴇʀs ᴄᴀɴ ᴠɪᴇᴡ. ", reply_markup=reply_markups)
     await message.reply_video(
-        video="https://files.catbox.moe/8qigce.mp4",
+        video="https://files.catbox.moe/272tdj.mp4",
         caption="**» ᴄʜᴇᴄᴋ sᴜᴅᴏ ʟɪsᴛ ʙʏ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ.**\n\n**» ɴᴏᴛᴇ:**  ᴏɴʟʏ sᴜᴅᴏ ᴜsᴇʀs ᴄᴀɴ ᴠɪᴇᴡ. ",
         reply_markup=reply_markups,
     )
@@ -82,7 +82,7 @@ async def check_sudo_list(client, callback_query: CallbackQuery):
     keyboard = []
     if callback_query.from_user.id not in SUDOERS:
         return await callback_query.answer(
-            "𝘀𝘂𝗱𝗼 𝗱𝗲𝗸𝗵𝗲𝗴𝗮 𝗰𝗵𝗮𝗹𝗮 𝗷𝗮 𝗯𝗼𝘀𝗱𝗸𝗲 🤣🤣", show_alert=True
+            "𝘀𝘂𝗱𝗼 𝗱𝗲𝗸𝗵𝗲𝗴𝗮 𝗰𝗵𝗮𝗹𝗮 𝗷𝗮", show_alert=True
         )
     else:
         user = await app.get_users(OWNER_ID)
@@ -138,7 +138,7 @@ async def back_to_main_menu(client, callback_query: CallbackQuery):
     ]
     reply_markupes = InlineKeyboardMarkup(keyboard)
     await callback_query.message.edit_caption(
-        caption="**» ᴄʜᴇᴄᴋ sᴜᴅᴏ ʟɪsᴛ ʙʏ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ.**\n\n**» ɴᴏᴛᴇ:**  ᴏɴʟʏ sᴜᴅᴏ ᴜsᴇʀs ᴄᴀɴ ᴠɪᴇᴡ. ",
+        caption="<blockquote>**» ᴄʜᴇᴄᴋ sᴜᴅᴏ ʟɪsᴛ ʙʏ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ.**\n\n**» ɴᴏᴛᴇ:**  ᴏɴʟʏ sᴜᴅᴏ ᴜsᴇʀs ᴄᴀɴ ᴠɪᴇᴡ. </blockquote>",
         reply_markup=reply_markupes,
     )
 
