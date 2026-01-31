@@ -1,5 +1,6 @@
-from pyrogram import Client, filters
+from pyrogram import filters
 from pyrogram.types import Message
+from Oneforall import app
 
 WELCOME_TEXT = """
 ⸻⬫⸺〈💖 𝐖ᴇʟᴄᴏᴍᴇ 𝐓ᴏ {group} 💖〉⸺⬫⸻
@@ -15,13 +16,13 @@ WELCOME_TEXT = """
 💗✨ 𝐄ɴᴊᴏʏ 𝐓ʜᴇ 𝐕ɪʙᴇ𝐬 • 𝐅ᴇᴇʟ 𝐓ʜᴇ 𝐌ᴜꜱɪᴄ ✨💗
 """
 
-@Client.on_message(filters.new_chat_members)
-async def welcome_new_member(client: Client, message: Message):
+@app.on_message(filters.new_chat_members & filters.group)
+async def welcome_new_member(_, message: Message):
     chat = message.chat
     group_name = chat.title or "This Group"
 
     try:
-        members_count = await client.get_chat_members_count(chat.id)
+        members_count = await app.get_chat_members_count(chat.id)
     except:
         members_count = "—"
 
@@ -38,7 +39,8 @@ async def welcome_new_member(client: Client, message: Message):
             members=members_count
         )
 
-        await message.reply_text(
+        await app.send_message(
+            chat.id,
             text,
             disable_web_page_preview=True
-      )
+        )
