@@ -1,197 +1,282 @@
-# -*- coding: utf-8 -*-
-import ssl
-import socket
+import sys
+import os
+import threading
+import asyncio
 import requests
-from datetime import datetime
-from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+from config import BOT_TOKEN
+from urllib.parse import urljoin, urlparse
+from fpdf import FPDF
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import A4
-
-DISCLAIMER = (
-    "⚠️ DISCLAIMER:\n"
-    "This scan performs PASSIVE security checks only.\n"
-    "Use this tool ONLY on websites you own or have permission to test.\n"
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
 )
 
-SMALL_CAPS = str.maketrans(
-    "abcdefghijklmnopqrstuvwxyz",
-    "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ"
-)
+# ================= CONFIG =================
 
+SEC_HEADERS = [
+    "X-Frame-Options",
+    "Content-Security-Policy",
+    "X-XSS-Protection",
+    "Strict-Transport-Security",
+    "Referrer-Policy",
+    "Permissions-Policy",
+]
 
-def sc(text: str) -> str:
-    return text.lower().translate(SMALL_CAPS)
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+
+COMMON_CMS = {
+    "WordPress": ["/wp-login.php", "/wp-admin/", "wp-content"],
+    "Joomla": ["/administrator/", "joomla"],
+    "Drupal": ["/user/login", "drupal"],
+    "Magento": ["/admin", "mage/"],
+    "Laravel": [".env", "laravel"],
+    "Shopify": ["cdn.shopify.com", "myshopify.com"],
+}
+
+sys.setrecursionlimit(3000)
+
+# ==================== HELPERS =====================
+def pdf_safe(text, max_len=80):
+    if not isinstance(text, str):
+        text = str(text)
+    text = text[:max_len]
+    return text.encode("latin-1", "ignore").decode("latin-1")
 
 
 def normalize_url(url: str) -> str:
-    if not url.startswith("http"):
+    if not url.startswith(("http://", "https://")):
         return "https://" + url
     return url
 
 
-def check_headers(url: str):
-    result = {
-        "missing_headers": [],
-        "present_headers": [],
-    }
-
-    try:
-        r = requests.get(url, timeout=10)
-        headers = r.headers
-
-        security_headers = [
-            "Content-Security-Policy",
-            "X-Frame-Options",
-            "X-Content-Type-Options",
-            "Strict-Transport-Security",
-            "Referrer-Policy",
-        ]
-
-        for h in security_headers:
-            if h in headers:
-                result["present_headers"].append(h)
-            else:
-                result["missing_headers"].append(h)
-
-    except Exception:
-        pass
-
-    return result
-
-
-def check_ssl(domain: str):
-    info = {
-        "https": False,
-        "tls_version": "unknown",
-    }
-
+def check_ssl(domain: str) -> bool:
+    import ssl, socket
     try:
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(
             socket.socket(), server_hostname=domain
         ) as s:
-            s.settimeout(5)
+            s.settimeout(3)
             s.connect((domain, 443))
-            info["https"] = True
-            info["tls_version"] = s.version()
-    except Exception:
+        return True
+    except:
+        return False
+
+
+def scan_headers(url: str) -> list:
+    issues = []
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=6)
+        headers = r.headers
+        for h in SEC_HEADERS:
+            if h not in headers:
+                issues.append(f"{h.upper()} MISSING")
+        if "Server" in headers:
+            issues.append(f"SERVER HEADER EXPOSED: {headers.get('Server')}")
+        if "X-Powered-By" in headers:
+            issues.append(f"TECH DISCLOSURE VIA X-POWERED-BY: {headers.get('X-Powered-By')}")
+    except:
+        issues.append("FAILED TO FETCH HEADERS")
+    return issues
+
+
+def fingerprint_cms(url: str) -> list:
+    detected = []
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=6)
+        html = r.text.lower()
+        path = urlparse(url).path.lower()
+        for cms, sigs in COMMON_CMS.items():
+            for sig in sigs:
+                if sig.lower() in html or sig.lower() in path:
+                    detected.append(cms)
+                    break
+    except:
         pass
+    return list(set(detected))
 
-    return info
 
+def scan_website(target: str) -> dict:
+    result = {
+        "domain": target,
+        "ssl": False,
+        "threats": [],
+        "recommendations": [],
+        "score": 10,
+        "risk": "LOW",
+        "cms": [],
+    }
 
-def risk_level(missing_headers: int, https: bool):
-    score = missing_headers
-    if not https:
-        score += 3
+    url = normalize_url(target)
+    parsed = urlparse(url)
 
-    if score <= 2:
-        return "LOW"
-    elif score <= 5:
-        return "MEDIUM"
+    # SSL check
+    if parsed.scheme == "https":
+        result["ssl"] = check_ssl(parsed.hostname)
+        if not result["ssl"]:
+            result["threats"].append("INVALID OR MISCONFIGURED SSL CERTIFICATE")
+            result["recommendations"].append("CONFIGURE VALID SSL/TLS")
+            result["score"] -= 2
     else:
-        return "HIGH"
+        result["threats"].append("WEBSITE DOES NOT ENFORCE HTTPS")
+        result["recommendations"].append("ENABLE HTTPS")
+        result["score"] -= 3
+
+    # Header scan
+    header_issues = scan_headers(url)
+    result["threats"].extend(header_issues)
+    result["score"] -= len(header_issues)
+
+    # CMS detection
+    cms_list = fingerprint_cms(url)
+    if cms_list:
+        result["cms"] = cms_list
+        result["threats"].append(f"DETECTED CMS/TECH: {', '.join(cms_list)}")
+        result["recommendations"].append("KEEP CMS & PLUGINS UP-TO-DATE")
+
+    # Risk level
+    if result["score"] <= 4:
+        result["risk"] = "CRITICAL"
+    elif result["score"] <= 6:
+        result["risk"] = "HIGH"
+    elif result["score"] <= 8:
+        result["risk"] = "MEDIUM"
+
+    result["score"] = max(1, result["score"])
+    return result
 
 
-def generate_text_report(domain, headers, ssl_info, risk):
-    lines = [
-        sc("✦ security assessment report ✦"),
-        "",
-        f"• {sc('website')} : {domain}",
-        f"• {sc('security level')} : {sc(risk)}",
-        "",
-        sc("❖ identified risks"),
+def format_text_report(result: dict) -> str:
+    report = (
+        f"🛡 WEBSITE SCAN REPORT\n"
+        f"▸ DOMAIN : {result['domain']}\n"
+        f"▸ RISK LEVEL : {result['risk']}\n"
+        f"▸ SCORE : {result['score']}/10\n\n"
+        "⟐ IDENTIFIED THREATS ⟐\n"
+    )
+    for t in result["threats"]:
+        report += f"• {t}\n"
+    report += "\n⟐ RECOMMENDATIONS ⟐\n"
+    for r in result["recommendations"]:
+        report += f"➤ {r}\n"
+    return report
+
+
+def make_pdf(results, user_id):
+    filename = f"report_{user_id}.pdf"
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "WEBSITE SECURITY AUDIT REPORT", ln=True)
+    pdf.ln(6)
+
+    pdf.set_font("Arial", "B", 9)
+    headers = ["URL", "SSL", "THREATS", "SCORE", "RISK"]
+    widths = [70, 15, 70, 15, 20]
+
+    for h, w in zip(headers, widths):
+        pdf.cell(w, 7, h, border=1)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=8)
+
+    for r in results:
+        threats_text = ", ".join(r["threats"])[:70]
+        row = [
+            pdf_safe(r["domain"]),
+            "YES" if r["ssl"] else "NO",
+            pdf_safe(threats_text),
+            str(r["score"]),
+            r["risk"],
+        ]
+        for item, w in zip(row, widths):
+            pdf.cell(w, 6, item, border=1)
+        pdf.ln()
+
+    pdf.output(filename)
+    return filename
+
+
+# ================= TELEGRAM =================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [
+        [InlineKeyboardButton("🎯 Set Target", callback_data="info")],
+        [InlineKeyboardButton("🔍 Start Scan", callback_data="scan")],
+        [InlineKeyboardButton("📄 Generate PDF", callback_data="pdf")],
+        [InlineKeyboardButton("👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/cyber_github")],
     ]
-
-    if headers["missing_headers"]:
-        for h in headers["missing_headers"]:
-            lines.append(f"• {sc('missing header')} : {h.lower()}")
-    else:
-        lines.append(f"• {sc('no critical header issues detected')}")
-
-    if not ssl_info["https"]:
-        lines.append(f"• {sc('https not enforced')}")
-
-    lines.append("")
-    lines.append(sc("❖ recommendations"))
-    lines.append(f"• {sc('enable missing security headers')}")
-    lines.append(f"• {sc('enforce https with hsts')}")
-
-    lines.append("")
-    lines.append(DISCLAIMER)
-
-    return "\n".join(lines)
-
-
-def generate_pdf(path, domain, headers, ssl_info, risk):
-    doc = SimpleDocTemplate(path, pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-
-    def p(text):
-        story.append(Paragraph(text, styles["Normal"]))
-        story.append(Spacer(1, 10))
-
-    p("<b>Security Assessment Report</b>")
-    p(f"Website: {domain}")
-    p(f"Security Level: {risk}")
-    p(f"Scan Time: {datetime.utcnow()} UTC")
-
-    p("<b>Identified Risks</b>")
-    if headers["missing_headers"]:
-        for h in headers["missing_headers"]:
-            p(f"- Missing Header: {h}")
-    else:
-        p("No critical header issues detected.")
-
-    if not ssl_info["https"]:
-        p("HTTPS not enforced.")
-
-    p("<b>Recommendations</b>")
-    p("Enable missing security headers.")
-    p("Force HTTPS and HSTS.")
-
-    p("<b>Disclaimer</b>")
-    p("This scan performs passive checks only. Use only on sites you own or are authorized to test.")
-
-    doc.build(story)
-
-
-@Client.on_message(filters.command("vlscan"))
-async def vlscan_handler(client: Client, message: Message):
-    if len(message.command) < 2:
-        return await message.reply_text(
-            "Usage:\n/vlscan <website>\nExample: /vlscan example.com"
-        )
-
-    raw = message.command[1]
-    url = normalize_url(raw)
-    domain = urlparse(url).netloc
-
-    status = await message.reply_text("🔍 Starting passive vulnerability scan...")
-
-    headers = check_headers(url)
-    ssl_info = check_ssl(domain)
-    risk = risk_level(len(headers["missing_headers"]), ssl_info["https"])
-
-    text_report = generate_text_report(domain, headers, ssl_info, risk)
-
-    pdf_path = f"/tmp/vlscan_{domain}.pdf"
-    generate_pdf(pdf_path, domain, headers, ssl_info, risk)
-
-    await status.delete()
-
-    await message.reply_text(
-        f"```\n{text_report}\n```",
-        disable_web_page_preview=True,
+    await update.message.reply_text(
+        "🛡 ADVANCED WEBSITE SCANNER BOT\n⚠ SCAN ONLY WEBSITES YOU OWN OR HAVE PERMISSION FOR.",
+        reply_markup=InlineKeyboardMarkup(kb),
     )
 
-    await message.reply_document(
-        pdf_path,
-        caption="📄 Vulnerability Scan Report (PDF)",
-          )
+
+async def vlscan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Usage:\n/vlscan <website>")
+        return
+
+    target = context.args[0].rstrip("/")
+    context.user_data.clear()
+    context.user_data["target"] = target
+    context.user_data["results_ready"] = False
+
+    msg = await update.message.reply_text(f"🔍 STARTING PASSIVE SCAN FOR {target}…")
+    loop = asyncio.get_running_loop()
+
+    def run_scan():
+        result = scan_website(target)
+        context.user_data["results"] = [result]
+        context.user_data["results_ready"] = True
+
+        # Send textual report
+        text_report = format_text_report(result)
+        asyncio.run_coroutine_threadsafe(
+            update.message.reply_text(f"```\n{text_report}\n```", parse_mode=None),
+            loop,
+        )
+
+        # Update progress message
+        asyncio.run_coroutine_threadsafe(
+            msg.edit_text(
+                f"✅ SCAN COMPLETE!\nRISK LEVEL: {result['risk']}\nSCORE: {result['score']}/10"
+            ),
+            loop,
+        )
+
+    threading.Thread(target=run_scan, daemon=True).start()
+
+
+async def vlpdf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("results_ready"):
+        await update.message.reply_text("❌ Scan not completed yet")
+        return
+
+    results = context.user_data.get("results", [])
+    if not results:
+        await update.message.reply_text("❌ No scan results found")
+        return
+
+    filename = make_pdf(results, update.effective_user.id)
+    with open(filename, "rb") as doc:
+        await update.message.reply_document(doc)
+    os.remove(filename)
+
+
+# ================== RUN BOT ======================
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("vlscan", vlscan_command))
+app.add_handler(CommandHandler("vlpdf", vlpdf_command))
+app.run_polling()
