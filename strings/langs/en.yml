@@ -212,7 +212,7 @@ ping_2 : "<blockquote expandable><b>🏓 ᴩᴏɴɢ : <code>{0}ᴍs</code>\n\n<b
 queue_1 : "» ғᴇᴛᴄʜɪɴɢ ǫᴜᴇᴜᴇ...\n\nᴘʟᴇᴀsᴇ ᴡᴀɪᴛ..."
 queue_2 : "» ǫᴜᴇᴜᴇ ᴇᴍᴘᴛʏ."
 queue_3 : "<u>» ᴄʟɪᴄᴋ ʜᴇʀᴇ ᴛᴏ ᴄʜᴇᴄᴋ ᴛʜᴇ ʟɪsᴛ ᴏғ ᴛʜᴇ ǫᴜᴇᴜᴇᴅ ᴛʀᴀᴄᴋs :</u> <a href={0}>ʜᴇʀᴇ</a>"
-queue_4 : "<bblockquote expandable>⁠<b>❖ ᴍᴜsɪᴄ ση ǫᴜᴇᴜᴇ⏤͟͞● Aᴛ #{0}\n\n🎧 Tɪᴛʟᴇ :</b> {1}\n<b>⏱️ ʟᴇɴɢᴛʜ :</b> {2} ᴍɪɴᴜᴛᴇs\n<b>🛠️ ʀᴇǫᴜᴇsᴛᴇʀ :</b> {3}\n\n<b>⊚ ᴄʀᴇᴀᴛᴇᴅ ʙʏ ➜<a href=\"https://t.me/cyber_github\">˹ | •ɢx ɪɴғɪɴɪᴛʏ ˼</a></b></blockquote expandable>"
+queue_4 : "<blockquote expandable>⁠<b>❖ ᴍᴜsɪᴄ ση ǫᴜᴇᴜᴇ Aᴛ #{0}⏤͟͞●\n\n🎧 Tɪᴛʟᴇ :</b> {1}\n<b>⏱️ ʟᴇɴɢᴛʜ :</b> {2} ᴍɪɴᴜᴛᴇs\n<b>🛠️ ʀᴇǫᴜᴇsᴛᴇʀ :</b> {3}\n\n<b>⊚ ᴄʀᴇᴀᴛᴇᴅ ʙʏ ➜<a href=\"https://t.me/cyber_github\">˹ | •ɢx ɪɴғɪɴɪᴛʏ ˼</a></b></blockquote expandable>"
 queue_5 : "ᴛʜᴇʀᴇ's ᴏɴʟʏ ᴏɴᴇ ǫᴜᴇᴜᴇᴅ ᴛʀᴀᴄᴋ ɪɴ ᴘʟᴀʏʟɪsᴛ.\n\nᴀᴅᴅ ᴍᴏʀᴇ ᴛʀᴀᴄᴋs ᴛᴏ ᴄʜᴇᴄᴋ ʟɪsᴛ."
 queue_6 : "<b>🕚 ᴅᴜʀᴀᴛɪᴏɴ :</b> ᴜɴᴋɴᴏᴡɴ ᴅᴜʀᴀᴛɪᴏɴ sᴛʀᴇᴀᴍ\n\nᴄʟɪᴄᴋ ᴏɴ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ɢᴇᴛ ᴡʜᴏʟᴇ ǫᴜᴇᴜᴇᴅ ʟɪsᴛ."
 queue_7 : "\nᴄʟɪᴄᴋ ᴏɴ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ɢᴇᴛ ᴡʜᴏʟᴇ ǫᴜᴇᴜᴇᴅ ʟɪsᴛ."
